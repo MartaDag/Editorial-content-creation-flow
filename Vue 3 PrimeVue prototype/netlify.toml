@@ -1,0 +1,9 @@
+# Static site — no build step. Vue + PrimeVue load from CDN at runtime.
+[build]
+  publish = "."
+
+# Single-page app: serve index.html for any unknown path.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

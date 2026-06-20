@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Editorial Content Search · Vue + PrimeVue</title>
+
+<!-- Vue 3 -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<!-- PrimeVue 4 (all components on global `PrimeVue`) -->
+<script src="https://unpkg.com/primevue/umd/primevue.min.js"></script>
+<!-- Aura theme preset -->
+<script src="https://unpkg.com/@primeuix/themes/umd/aura.js"></script>
+<!-- PrimeIcons -->
+<link rel="stylesheet" href="https://unpkg.com/primeicons/primeicons.css" />
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+  :root:root:root {
+    /* Minera indigo ramp → recolours PrimeVue's primary palette (beats the runtime-injected :root) */
+    --p-primary-50:  #F4F5FE;
+    --p-primary-100: #E9EBFD;
+    --p-primary-200: #D8DCFB;
+    --p-primary-300: #B8C3F7;
+    --p-primary-400: #8696F0;
+    --p-primary-500: #3E4CE2;
+    --p-primary-600: #2C38AE;
+    --p-primary-700: #232E94;
+    --p-primary-800: #1A247A;
+    --p-primary-900: #0F1652;
+    --p-primary-950: #0C0D1A;
+    --p-font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+    /* local design tokens (chrome) */
+    --fg-primary:   #1A1B1C;
+    --fg-secondary: #56575A;
+    --fg-tertiary:  #888888;
+    --stroke-bright:#E6E7EB;
+    --stroke-deep:  #888888;
+    --fill-base-02: #F1F2F5;
+    --fill-bright:  #F1F2F5;
+    --neutral-300:  #B8B9BC;
+    --neutral-400:  #A1A2A5;
+    --neutral-950:  #1A1B1C;
+    --accent-100:   #E9EBFD;
+    --accent-300:   #B8C3F7;
+    --accent-500:   #3E4CE2;
+    --accent-600:   #2C38AE;
+    --accent-700:   #232E94;
+    --green-stroke: #3FA35A;
+    --red-stroke:   #CC0000;
+    --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-full: 9999px;
+    --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body, #app { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--fill-base-02);
+    color: var(--fg-primary);
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  [v-cloak] { display: none; }
+  ::selection { background: var(--accent-100); }
+
+  /* ---------- App shell ---------- */
+  .app-shell { display: grid; grid-template-columns: 56px 1fr; height: 100vh; }
+  .rail {
+    background: var(--neutral-950);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 12px 0 10px; gap: 2px;
+  }
+  .rail-brand {
+    width: 34px; height: 34px; border-radius: var(--radius-md);
+    background: var(--accent-500); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 15px; margin-bottom: 12px;
+  }
+  .rail-item {
+    width: 38px; height: 38px; border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--neutral-400); cursor: pointer; font-size: 17px;
+  }
+  .rail-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+  .rail-item.active { background: var(--accent-500); color: #fff; }
+  .rail-spacer { flex: 1; }
+  .rail-badge {
+    width: 30px; height: 30px; border-radius: var(--radius-sm);
+    background: var(--red-stroke); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 10px; margin-top: 6px;
+  }
+
+  .main { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar {
+    height: 52px; background: #fff; border-bottom: 1px solid var(--stroke-bright);
+    display: flex; align-items: center; gap: 14px; padding: 0 18px 0 24px;
+  }
+  .breadcrumb { display: flex; gap: 8px; align-items: center; color: var(--fg-tertiary); font-size: 13px; }
+  .breadcrumb .sep { color: var(--neutral-300); display: inline-flex; font-size: 11px; }
+  .breadcrumb .current { color: var(--fg-primary); font-weight: 500; }
+  .topbar-spacer { flex: 1; }
+
+  .page { flex: 1; overflow: auto; }
+  .page-inner { max-width: 1120px; margin: 0 auto; padding: 32px 40px 80px; }
+  .page-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 22px; }
+  .page-head h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+  .page-head .count { color: var(--fg-tertiary); font-size: 14px; margin-top: 4px; }
+  .page-head-spacer { flex: 1; }
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+
+  /* DataTable trims */
+  .panel .p-datatable { font-size: 14px; }
+  .panel { background:#fff; border:1px solid var(--stroke-bright); border-radius: var(--radius-md); overflow:hidden; }
+  .title-cell { font-weight: 500; }
+  .row-actions { display: flex; gap: 2px; justify-content: flex-end; }
+
+  /* ---------- Wizard / modal bits ---------- */
+  .eyebrow { font-size: 12px; color: var(--fg-tertiary); margin-bottom: 3px; }
+  .modal-title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.018em; }
+  .modal-back {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 28px; padding: 0 11px 0 8px; margin-bottom: 10px;
+    border: 1px solid var(--stroke-bright); border-radius: var(--radius-full);
+    background: #fff; cursor: pointer; font-size: 13px; color: var(--fg-secondary);
+    font-weight: 500; white-space: nowrap;
+  }
+  .modal-back:hover { background: var(--fill-bright); color: var(--fg-primary); }
+  .modal-x {
+    position: absolute; top: -4px; right: -4px; width: 32px; height: 32px;
+    border: none; background: transparent; border-radius: var(--radius-sm);
+    cursor: pointer; color: var(--fg-tertiary); display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .modal-x:hover { background: var(--fill-bright); color: var(--fg-primary); }
+
+  /* visuals step */
+  .visual-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--fill-bright); border-radius: var(--radius-full);
+    padding: 5px 6px 5px 13px; font-size: 13px; font-weight: 500; color: var(--fg-secondary);
+  }
+  .visual-chip button {
+    border: none; background: transparent; cursor: pointer; color: var(--fg-tertiary);
+    display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; font-size: 11px;
+  }
+  .visual-chip button:hover { background: rgba(0,0,0,0.08); color: var(--fg-primary); }
+  .visual-block { margin-bottom: 22px; }
+  .dropzone {
+    position: relative; margin-top: 10px;
+    border: 1.5px dashed #CDCED1; border-radius: var(--radius-md);
+    min-height: 150px; padding: 16px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
+    background: var(--fill-base-02); transition: border-color 120ms, background 120ms;
+  }
+  .dropzone.over { border-color: var(--accent-500); background: var(--accent-100); }
+  .dropzone.filled { background: #fff; }
+  .dz-btn {
+    display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px;
+    background: #fff; border: 1px solid var(--stroke-deep); border-radius: var(--radius-sm);
+    font-weight: 500; font-size: 14px; cursor: pointer; color: var(--fg-primary);
+  }
+  .dz-btn:hover { background: var(--fill-base-02); }
+  .dz-hint { font-size: 13px; color: var(--fg-tertiary); }
+  .dz-preview { max-width: 100%; max-height: 240px; border-radius: var(--radius-sm); display: block; }
+  .dz-remove {
+    position: absolute; top: 8px; right: 8px; width: 28px; height: 28px;
+    border: none; border-radius: var(--radius-sm); background: rgba(26,27,28,0.72); color: #fff;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px;
+  }
+  .dz-remove:hover { background: rgba(26,27,28,0.9); }
+
+  .field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 18px; }
+  .label-row { display: flex; align-items: baseline; justify-content: space-between; }
+  .label-row label { font-weight: 700; font-size: 13px; }
+  .req { color: var(--red-stroke); margin-left: 2px; }
+  .meta-foot { display: flex; align-items: baseline; justify-content: space-between; margin-top: 2px; }
+  .meta-foot .help { color: var(--fg-tertiary); font-size: 12px; white-space: nowrap; }
+  .meta-foot .counter { font-family: var(--font-mono); font-size: 11px; color: var(--fg-tertiary); margin-left: 12px; }
+  .meta-foot .counter.over { color: var(--red-stroke); }
+  .full { width: 100%; }
+
+  .redir-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .redir-card {
+    display: flex; align-items: flex-start; gap: 11px;
+    border: 1px solid var(--stroke-bright); border-radius: var(--radius-md);
+    padding: 14px; cursor: pointer; background: #fff;
+    transition: border-color 120ms, background 120ms;
+  }
+  .redir-card:hover { border-color: var(--stroke-deep); background: var(--fill-base-02); }
+  .redir-card.selected { border-color: var(--accent-500); background: var(--accent-100); }
+  .rc-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+  .rc-desc { font-size: 12px; color: var(--fg-secondary); line-height: 1.45; margin-top: 5px; }
+
+  .chosen {
+    border: 1px solid var(--accent-300); background: var(--accent-100);
+    border-radius: var(--radius-md); padding: 14px 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .chosen .meta-type { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent-700); }
+  .chosen .t { font-weight: 600; font-size: 15px; margin-top: 2px; }
+  .chosen .sub { font-size: 12px; color: var(--fg-secondary); font-family: var(--font-mono); margin-top: 3px; }
+  .chosen .spacer { flex: 1; }
+
+  /* mini stepper in footer */
+  .stepper { display: flex; align-items: center; }
+  .stepper .node { display: flex; align-items: center; gap: 9px; }
+  .stepper .dot {
+    width: 26px; height: 26px; border-radius: var(--radius-full);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; font-family: var(--font-mono);
+    border: 1px solid var(--stroke-bright); background: #fff; color: var(--fg-tertiary);
+  }
+  .stepper .node.active .dot { background: var(--accent-500); border-color: var(--accent-500); color: #fff; }
+  .stepper .node.done .dot { background: var(--accent-100); border-color: var(--accent-100); color: var(--accent-600); }
+  .stepper .node .lbl { font-size: 13px; color: var(--fg-tertiary); }
+  .stepper .node.active .lbl { color: var(--fg-primary); font-weight: 500; }
+  .stepper .bar { width: 28px; height: 1px; background: var(--stroke-bright); margin: 0 12px; }
+
+  /* ---------- Search (Pattern D) ---------- */
+  .sv-wrap { display: flex; flex-direction: column; min-height: 380px; }
+  .deep-help { font-size: 12px; color: var(--fg-tertiary); margin: 12px 2px 0; line-height: 1.5; }
+  .ctx-chip {
+    display: inline-flex; align-items: center; gap: 9px; align-self: flex-start;
+    background: var(--accent-100); border: 1px solid var(--accent-300);
+    border-radius: var(--radius-full); padding: 4px 12px 4px 6px; font-size: 13px; color: var(--accent-700);
+    margin-bottom: 10px; max-width: 100%;
+  }
+  .ctx-chip .pl { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ctx-chip .ck { font-family: var(--font-mono); font-size: 11px; color: var(--accent-600); opacity: 0.8; }
+
+  .sv-results { margin-top: 12px; overflow-y: auto; overflow-x: hidden; max-height: 320px; }
+  .res-row {
+    display: flex; align-items: center; gap: 13px;
+    padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .res-row:hover { background: var(--fill-base-02); }
+  .res-row.selected { background: var(--accent-100); border-color: var(--accent-300); }
+  .ic-box { width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--fill-bright); color: var(--fg-secondary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
+  .res-main { flex: 1; min-width: 0; }
+  .res-main .t { font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .res-main .t .tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .res-main .sub { font-size: 12px; color: var(--fg-tertiary); font-family: var(--font-mono); margin-top: 3px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .res-main .sub .k { color: var(--neutral-400); }
+  mark { background: var(--accent-300); color: var(--accent-700); border-radius: 2px; padding: 0 1px; }
+
+  .sv-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 40px 20px; color: var(--fg-tertiary); gap: 12px;
+  }
+  .sv-empty .ic-circle { width: 52px; height: 52px; border-radius: var(--radius-full); background: var(--fill-bright); display: flex; align-items: center; justify-content: center; color: var(--neutral-400); font-size: 22px; }
+  .sv-empty .et { font-size: 15px; font-weight: 600; color: var(--fg-secondary); }
+  .sv-empty .ed { font-size: 13px; max-width: 320px; line-height: 1.5; }
+
+  .status-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-secondary); flex-shrink: 0; }
+  .status-dot .d { width: 7px; height: 7px; border-radius: 50%; }
+
+  .scope-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: var(--radius-full); background: var(--fill-bright); color: var(--fg-secondary); text-transform: uppercase; letter-spacing: 0.03em; }
+
+  .fab { position: fixed; bottom: 24px; right: 24px; z-index: 90; }
+
+  /* PrimeVue tweaks */
+  .p-dialog { border-radius: var(--radius-lg) !important; }
+  .p-selectbutton { flex-wrap: wrap; }
+  .p-button-label { white-space: nowrap; }
+  .p-button { white-space: nowrap; }
+  /* show dialog immediately — don't depend on rAF-driven enter transition */
+  .p-dialog { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .p-dialog-mask { opacity: 1 !important; }
+</style>
+</head>
+<body>
+<div id="app" v-cloak></div>
+
+<script>
+const { createApp, ref, reactive, computed, watch } = Vue;
+
+/* ============================================================
+   Sample content database (editorial-content search flow)
+   ============================================================ */
+const POSTERS = {
+  morning:["#3E4CE2","#8696F0"], pop:["#CC0000","#E36262"], bundes:["#183818","#3FA35A"],
+  reality:["#4A3918","#E5B44D"], formel:["#0D1E4A","#295DD1"], oktagon:["#2B2C2D","#6F7073"],
+  crime:["#0F1652","#3E4CE2"], royals:["#56575A","#B8B9BC"],
+};
+const SERVICES = [
+  { id:"SRV-001", title:"M6+", ck:"ck_srv_m6plus", status:"online" },
+  { id:"SRV-002", title:"6play", ck:"ck_srv_6play", status:"online" },
+  { id:"SRV-003", title:"Gulli Max", ck:"ck_srv_gullimax", status:"online" },
+  { id:"SRV-004", title:"Téva Connect", ck:"ck_srv_teva", status:"offline" },
+  { id:"SRV-005", title:"Salto Replay", ck:"ck_srv_salto", status:"online" },
+];
+const CHANNELS = [
+  { id:"CHN-061", title:"M6", ck:"ck_chn_m6", status:"online" },
+  { id:"CHN-062", title:"W9", ck:"ck_chn_w9", status:"online" },
+  { id:"CHN-063", title:"6ter", ck:"ck_chn_6ter", status:"online" },
+  { id:"CHN-064", title:"Gulli", ck:"ck_chn_gulli", status:"online" },
+  { id:"CHN-065", title:"Téva", ck:"ck_chn_teva", status:"offline" },
+  { id:"CHN-066", title:"Paris Première", ck:"ck_chn_pp", status:"online" },
+  { id:"CHN-067", title:"RTL Zwei", ck:"ck_chn_rtl2", status:"online" },
+];
+const FRONTSPACES = [
+  { id:"FS-EPG", title:"EPG grid", desc:"The electronic programme guide — a time-based grid of what's on each channel.", icon:"pi-table" },
+  { id:"FS-OFFER", title:"Offer", desc:"The merchandised catalogue surface — curated rails of programmes and collections.", icon:"pi-th-large" },
+  { id:"FS-BOOKMARK", title:"Bookmark", desc:"The user's saved content — favourites and watch-later list.", icon:"pi-bookmark" },
+  { id:"FS-SEARCH", title:"Search", desc:"The in-app search surface where users look up content directly.", icon:"pi-search" },
+];
+const PROGRAMS = [
+  { id:"PRG-10432", ck:"ck_8f2a4d", title:"The Morning Show", poster:"morning", genre:"Talk show", status:"online",
+    seasons:[{id:"SEA-50101",title:"Season 1",status:"online",episodes:18},{id:"SEA-50102",title:"Season 2",status:"online",episodes:20},{id:"SEA-50103",title:"Season 3",status:"online",episodes:20},{id:"SEA-50104",title:"Season 4",status:"offline",episodes:12}],
+    clips:[{id:"CLP-90011",title:"Opening monologue — live debate",status:"online",dur:"4:12"},{id:"CLP-90012",title:"Backstage with the hosts",status:"online",dur:"7:48"},{id:"CLP-90013",title:"Best of season 2",status:"offline",dur:"12:30"}] },
+  { id:"PRG-20984", ck:"ck_3b7d11", title:"The Pop Culture Podcast", poster:"pop", genre:"Podcast", status:"online",
+    seasons:[{id:"SEA-50201",title:"Season 1",status:"online",episodes:24},{id:"SEA-50202",title:"Season 2",status:"online",episodes:24},{id:"SEA-50203",title:"Season 3",status:"online",episodes:16}],
+    clips:[{id:"CLP-90031",title:"The 90s nostalgia special",status:"online",dur:"9:05"},{id:"CLP-90032",title:"Live from Cannes",status:"online",dur:"15:22"}] },
+  { id:"PRG-30021", ck:"ck_9c1e07", title:"Bundesliga Highlights", poster:"bundes", genre:"Sport", status:"online",
+    seasons:[{id:"SEA-50301",title:"Season 2024/25",status:"online",episodes:34},{id:"SEA-50302",title:"Season 2025/26",status:"online",episodes:12}],
+    clips:[{id:"CLP-90051",title:"Matchday 12 — all goals",status:"online",dur:"6:40"},{id:"CLP-90052",title:"Goal of the month",status:"online",dur:"2:18"}] },
+  { id:"PRG-44120", ck:"ck_2d6f55", title:"Reality Royals", poster:"reality", genre:"Reality", status:"offline",
+    seasons:[{id:"SEA-50401",title:"Season 1",status:"offline",episodes:15}],
+    clips:[{id:"CLP-90071",title:"The final ceremony",status:"offline",dur:"8:55"}] },
+  { id:"PRG-51277", ck:"ck_6a0b22", title:"Formel 1 Live", poster:"formel", genre:"Sport", status:"online",
+    seasons:[{id:"SEA-50501",title:"Season 2026",status:"online",episodes:23}],
+    clips:[{id:"CLP-90091",title:"Pole position lap — Monaco",status:"online",dur:"1:34"}] },
+  { id:"PRG-60843", ck:"ck_4f7c90", title:"Oktagon MMA", poster:"oktagon", genre:"Sport", status:"online",
+    seasons:[{id:"SEA-50601",title:"Season 3",status:"online",episodes:10}],
+    clips:[{id:"CLP-90101",title:"Main event knockout",status:"online",dur:"3:02"}] },
+  { id:"PRG-71190", ck:"ck_1ab3ee", title:"Crime Night", poster:"crime", genre:"Documentary", status:"online",
+    seasons:[{id:"SEA-50701",title:"Season 1",status:"online",episodes:8},{id:"SEA-50702",title:"Season 2",status:"online",episodes:8}],
+    clips:[] },
+];
+const EDITORIAL_ROWS = [
+  "Header Audiopage","Header Themenwelt NFL","Header Themenwelt Reality","Header Themenwelt Bundesliga",
+  "Header Themenwelt Formel 1","Header Themenwelt Football","Header Themenwelt Oktagon","Header Themenwelt Royals",
+  "Header Themenwelt Sport","Header Crime Night",
+].map((title, i) => ({ id: i + 1, title }));
+
+const RAIL = ["pi-tag","pi-megaphone","pi-image","pi-list","pi-th-large","pi-wifi","pi-compass","pi-chart-bar","pi-calendar"];
+
+const D_TABS = [
+  { key:"service",    label:"Service",    icon:"pi-wifi" },
+  { key:"channel",    label:"Channel",    icon:"pi-chart-bar" },
+  { key:"frontspace", label:"Frontspace", icon:"pi-th-large" },
+  { key:"catalog",    label:"Catalog",    icon:"pi-video" },
+];
+const PILL = { program:{label:"Program",icon:"pi-video"}, season:{label:"Season",icon:"pi-clone"}, clip:{label:"Clip",icon:"pi-play-circle"} };
+
+const REDIR_OPTIONS = [
+  { key:"none",     icon:"pi-ban",   title:"No redirection",      desc:"No redirection needed" },
+  { key:"external", icon:"pi-globe", title:"External URL",        desc:"Send users to any web address outside the app" },
+  { key:"internal", icon:"pi-link",  title:"Internal redirection",desc:"Link to an internal link" },
+];
+
+const VISUAL_TYPES = [
+  { key:"banner", label:"Banner [3:1]",     spec:"2160x720px, JPEG, JPG, PNG" },
+  { key:"poster", label:"Poster [2:3]",     spec:"720x1080px, JPEG, JPG, PNG" },
+  { key:"thumb",  label:"Thumbnail [16:9]", spec:"1280x720px, JPEG, JPG, PNG" },
+  { key:"square", label:"Square [1:1]",     spec:"1080x1080px, JPEG, JPG, PNG" },
+  { key:"logo",   label:"Logo",             spec:"600x600px, PNG, SVG" },
+];
+
+function makeSelection(type, item, program) {
+  switch (type) {
+    case "service":    return { type, _id:item.id, typeLabel:"Service",    title:item.title, sub:`${item.id} · ${item.ck}`, status:item.status };
+    case "channel":    return { type, _id:item.id, typeLabel:"Channel",    title:item.title, sub:`${item.id} · ${item.ck}`, status:item.status };
+    case "frontspace": return { type, _id:item.id, typeLabel:"Frontspace", title:item.title, sub:item.id, status:null };
+    case "program":    return { type, _id:item.id, typeLabel:"Program",    title:item.title, sub:`${item.id} · ${item.ck}`, status:item.status, poster:item.poster };
+    case "season":     return { type, _id:item.id, typeLabel:"Season",     title:`${program.title} — ${item.title}`, sub:`${item.id} · ${item.status}`, status:item.status, poster:program.poster };
+    case "clip":       return { type, _id:item.id, typeLabel:"Clip",       title:`${program.title} — ${item.title}`, sub:`${item.id} · ${item.dur}`, status:item.status, poster:program.poster };
+  }
+}
+
+/* ---------- small presentational components ---------- */
+const Poster = {
+  props: { poster:String, size:{type:Number,default:26}, radius:{type:Number,default:4} },
+  computed: { grad(){ const [a,b] = POSTERS[this.poster] || ["#888","#bbb"]; return `linear-gradient(140deg, ${a}, ${b})`; } },
+  template: `<div :style="{ width: size+'px', height: (size*1.34)+'px', borderRadius: radius+'px', flexShrink:0, background: grad, boxShadow:'inset 0 0 0 1px rgba(0,0,0,0.08)' }"></div>`
+};
+const StatusDot = {
+  props: { status:String },
+  computed: { online(){ return this.status === "online"; } },
+  template: `<span class="status-dot"><span class="d" :style="{ background: online ? 'var(--green-stroke)' : 'var(--neutral-300)' }"></span>{{ online ? 'Online' : 'Offline' }}</span>`
+};
+const Highlight = {
+  props: { text:String, q:String },
+  computed: {
+    parts(){
+      if(!this.q) return [{ m:false, t:this.text }];
+      const i = this.text.toLowerCase().indexOf(this.q.toLowerCase());
+      if(i < 0) return [{ m:false, t:this.text }];
+      return [{m:false,t:this.text.slice(0,i)},{m:true,t:this.text.slice(i,i+this.q.length)},{m:false,t:this.text.slice(i+this.q.length)}];
+    }
+  },
+  template: `<span class="tx"><template v-for="(p,i) in parts" :key="i"><mark v-if="p.m">{{ p.t }}</mark><template v-else>{{ p.t }}</template></template></span>`
+};
+
+/* ============================================================
+   Root app
+   ============================================================ */
+const App = {
+  components: { Poster, StatusDot, Highlight },
+  setup() {
+    const toast = PrimeVue.useToast();
+
+    const open = ref(true);
+    const step = ref(1);            // 1 Details · 2 Review
+    const mode = ref("wizard");     // wizard | search
+    const editorialRows = ref(EDITORIAL_ROWS);
+
+    const form = reactive({
+      title:"", pubTitle:"", subtitle:"", desc:"",
+      destKind:"", externalUrl:"", ctaLabel:"Watch now", selection:null,
+      visuals: [],
+    });
+
+    /* --- search state (Pattern D) --- */
+    const type = ref("catalog");
+    const q = ref("");
+    const drill = ref(null);        // program drilled into
+    const seasonDrill = ref(null);  // season drilled into
+    const fsSel = ref(null);        // frontspace listbox model
+    const draft = ref(null);        // in-progress selection
+
+    const selId = computed(() => draft.value ? draft.value._id : null);
+    const pick = (sel) => { draft.value = sel; };
+
+    const switchType = (k) => { type.value = k; q.value=""; drill.value=null; seasonDrill.value=null; fsSel.value=null; draft.value=null; };
+    const enterDrill = (p) => { drill.value = p; seasonDrill.value=null; q.value=""; draft.value=null; };
+    const exitDrill  = () => { drill.value = null; seasonDrill.value=null; q.value=""; draft.value=null; };
+    const enterSeason = (s) => { seasonDrill.value = s; q.value=""; draft.value=null; };
+    const exitSeason  = () => { seasonDrill.value = null; q.value=""; draft.value=null; };
+
+    const matchTitle = (list) => list.filter(x => x.title.toLowerCase().includes(q.value.toLowerCase()));
+    const matchPrograms = () => {
+      const t = q.value.toLowerCase();
+      return PROGRAMS.filter(p => p.title.toLowerCase().includes(t) || p.id.toLowerCase().includes(t) || p.ck.toLowerCase().includes(t));
+    };
+
+    // which sub-view of the search is active
+    const view = computed(() => {
+      if (type.value === "service" || type.value === "channel") return "title";
+      if (type.value === "frontspace") return "frontspace";
+      if (!drill.value) return "programs";
+      if (!seasonDrill.value) return "children";
+      return "clips";
+    });
+
+    const titleList = computed(() => matchTitle(type.value === "service" ? SERVICES : CHANNELS));
+    const programList = computed(() => matchPrograms());
+    const childList = computed(() => {
+      if (!drill.value) return [];
+      const t = q.value.toLowerCase();
+      const kids = [
+        ...drill.value.seasons.map(s => ({ kind:"season", item:s })),
+        ...drill.value.clips.map(c => ({ kind:"clip", item:c })),
+      ];
+      return kids.filter(({item}) => item.title.toLowerCase().includes(t) || item.id.toLowerCase().includes(t));
+    });
+    const clipList = computed(() => {
+      if (!drill.value || !seasonDrill.value) return [];
+      const t = q.value.toLowerCase();
+      return drill.value.clips.filter(c => c.title.toLowerCase().includes(t) || c.id.toLowerCase().includes(t));
+    });
+
+    /* --- modal navigation --- */
+    const reset = () => {
+      step.value = 1; mode.value = "wizard"; switchType("catalog"); type.value = "catalog";
+      Object.assign(form, { title:"", pubTitle:"", subtitle:"", desc:"", destKind:"", externalUrl:"", ctaLabel:"Watch now", selection:null, visuals:[] });
+    };
+    const openModal = () => { reset(); open.value = true; };
+    const closeModal = () => { open.value = false; };
+
+    const openSearch = () => { draft.value = form.selection; switchType("catalog"); mode.value = "search"; };
+    const backToWizard = () => { mode.value = "wizard"; };
+    const confirmSearch = () => { form.selection = draft.value; mode.value = "wizard"; };
+
+    // frontspace listbox → live draft
+    watch(fsSel, (fs) => { if (fs) draft.value = makeSelection("frontspace", fs); });
+
+    const dialogWidth = computed(() => mode.value === "search" ? "840px" : "720px");
+
+    const canNext = computed(() => {
+      if (step.value !== 1) return true;
+      if (form.title.trim() === "" || form.destKind === "") return false;
+      if (form.destKind === "external" && form.externalUrl.trim() === "") return false;
+      if (form.destKind === "internal" && !form.selection) return false;
+      return true;
+    });
+
+    const reviewDest = computed(() => {
+      if (form.destKind === "external")
+        return { typeLabel:"External URL", title: form.externalUrl || "—", sub: form.ctaLabel ? `CTA: ${form.ctaLabel}` : "Opens outside the app" };
+      if (form.destKind === "internal") return form.selection;
+      return null;
+    });
+
+    /* --- visuals step --- */
+    const availableTypes = computed(() => VISUAL_TYPES.filter(t => !form.visuals.some(v => v.key === t.key)));
+    const addVisual = (key) => {
+      if (!key) return;
+      const t = VISUAL_TYPES.find(x => x.key === key);
+      if (t && !form.visuals.some(v => v.key === key)) form.visuals.push({ ...t, file:null, fileName:"", alt:"", _drag:false });
+    };
+    const removeVisual = (i) => form.visuals.splice(i, 1);
+    const readImg = (file, i) => {
+      if (!file || !file.type.startsWith("image/")) return;
+      const r = new FileReader();
+      r.onload = e => { form.visuals[i].file = e.target.result; form.visuals[i].fileName = file.name; form.visuals[i]._drag = false; };
+      r.readAsDataURL(file);
+    };
+    const onFile = (i, e) => { readImg(e.target.files[0], i); e.target.value = ""; };
+    const onDrop = (i, e) => { form.visuals[i]._drag = false; readImg(e.dataTransfer.files[0], i); };
+    const canCreate = computed(() => form.visuals.length > 0 && form.visuals.every(v => v.file && v.alt.trim() !== ""));
+
+    const create = () => {
+      closeModal();
+      const d = new Date().toLocaleDateString("en-GB");
+      editorialRows.value = [{ id: Date.now(), title: form.title || "Untitled content", updated: d }, ...editorialRows.value];
+      toast.add({ severity:"success", summary:"New editorial content successfully added", detail:"This Editorial content is now available", life: 3000 });
+    };
+
+    const pickRedir = (k) => { form.destKind = k; if (k === "internal" && !form.selection) openSearch(); };
+
+    return {
+      RAIL, D_TABS, PILL, REDIR_OPTIONS, FRONTSPACES,
+      open, step, mode, editorialRows, form,
+      type, q, drill, seasonDrill, fsSel, draft, selId,
+      view, titleList, programList, childList, clipList,
+      switchType, enterDrill, exitDrill, enterSeason, exitSeason, pick,
+      makeSelection,
+      openModal, closeModal, openSearch, backToWizard, confirmSearch,
+      dialogWidth, canNext, reviewDest, create, pickRedir,
+      VISUAL_TYPES, availableTypes, addVisual, removeVisual, onFile, onDrop, canCreate,
+    };
+  },
+  template: `
+<div>
+  <!-- ===================== APP SHELL ===================== -->
+  <div class="app-shell">
+    <nav class="rail">
+      <div class="rail-brand">Sc</div>
+      <div v-for="(ic,i) in RAIL" :key="i" class="rail-item" :class="{ active: i===0 }"><i :class="'pi '+ic"></i></div>
+      <div class="rail-spacer"></div>
+      <div class="rail-badge">A2</div>
+    </nav>
+
+    <div class="main">
+      <div class="topbar">
+        <div class="breadcrumb">
+          <i class="pi pi-home"></i>
+          <span class="sep"><i class="pi pi-chevron-right"></i></span>
+          <span>Editorial tools</span>
+          <span class="sep"><i class="pi pi-chevron-right"></i></span>
+          <span class="current">Editorial content</span>
+        </div>
+        <div class="topbar-spacer"></div>
+        <Button icon="pi pi-bell" text rounded severity="secondary" aria-label="Notifications" />
+        <Button icon="pi pi-cog" text rounded severity="secondary" aria-label="Settings" />
+      </div>
+
+      <div class="page">
+        <div class="page-inner">
+          <div class="page-head">
+            <div>
+              <h1>Editorial content</h1>
+              <div class="count">{{ editorialRows.length }} elements</div>
+            </div>
+            <div class="page-head-spacer"></div>
+            <Button label="Add a content" icon="pi pi-plus" @click="openModal" />
+          </div>
+
+          <div class="toolbar">
+            <IconField>
+              <InputIcon class="pi pi-search" />
+              <InputText placeholder="Search an editorial content" style="width: 340px" />
+            </IconField>
+          </div>
+
+          <div class="panel">
+            <DataTable :value="editorialRows" dataKey="id" scrollable scrollHeight="flex" :rows="12">
+              <Column field="title" header="Title">
+                <template #body="{ data }"><span class="title-cell">{{ data.title }}</span></template>
+              </Column>
+              <Column header="Actions" :style="{ width: '120px' }" headerStyle="text-align:right" bodyStyle="text-align:right">
+                <template #body>
+                  <div class="row-actions">
+                    <Button icon="pi pi-pencil" text rounded severity="secondary" size="small" aria-label="Edit" />
+                    <Button icon="pi pi-trash" text rounded severity="secondary" size="small" aria-label="Delete" />
+                  </div>
+                </template>
+              </Column>
+            </DataTable>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <Button v-if="!open" class="fab" label="Add a content" icon="pi pi-plus" @click="openModal" raised />
+
+  <!-- ===================== WIZARD / SEARCH DIALOG ===================== -->
+  <Dialog v-model:visible="open" modal :closable="false" :draggable="false"
+          :style="{ width: dialogWidth }" :contentStyle="{ paddingBottom: '4px' }">
+
+    <!-- header -->
+    <template #header>
+      <div style="width:100%;position:relative">
+        <button type="button" class="modal-x" @click="closeModal" aria-label="Close"><i class="pi pi-times"></i></button>
+        <template v-if="mode==='search'">
+          <button class="modal-back" @click="backToWizard"><i class="pi pi-arrow-left" style="font-size:13px"></i> Back to editorial content</button>
+          <div class="eyebrow">Editorial content → Destination</div>
+          <h2 class="modal-title">Choose internal destination</h2>
+        </template>
+        <template v-else>
+          <div class="eyebrow">Create a new editorial content</div>
+          <h2 class="modal-title">{{ step===2 ? 'Editorial content’s visuals' : 'Editorial content' }}</h2>
+          <div v-if="step===2" style="color:var(--fg-secondary);font-size:14px;margin-top:5px">Choose the visuals needed for each editorial content’s format</div>
+        </template>
+      </div>
+    </template>
+
+    <!-- ========== SEARCH MODE (Pattern D) ========== -->
+    <div v-if="mode==='search'" class="sv-wrap">
+      <SelectButton :modelValue="type" @update:modelValue="v => v && switchType(v)"
+                    :options="D_TABS" optionValue="key" dataKey="key" :allowEmpty="false" aria-label="Content type">
+        <template #option="{ option }"><i :class="'pi '+option.icon" style="margin-right:6px;font-size:13px"></i>{{ option.label }}</template>
+      </SelectButton>
+
+      <!-- Service / Channel : title search -->
+      <template v-if="view==='title'">
+        <IconField style="margin-top:14px">
+          <InputIcon class="pi pi-search" />
+          <InputText v-model="q" :placeholder="'Search by '+type+' title…'" class="full" autofocus />
+        </IconField>
+        <div class="sv-results">
+          <div v-if="q===''" class="sv-empty">
+            <div class="ic-circle"><i :class="'pi '+(type==='service'?'pi-wifi':'pi-chart-bar')"></i></div>
+            <div class="et">Search {{ type }}s</div>
+            <div class="ed">Search on {{ type }} title.</div>
+          </div>
+          <div v-else-if="titleList.length===0" class="sv-empty">
+            <div class="ic-circle"><i class="pi pi-search"></i></div>
+            <div class="et">No matches</div>
+            <div class="ed">No {{ type }} matches “{{ q }}”.</div>
+          </div>
+          <div v-else>
+            <div v-for="item in titleList" :key="item.id" class="res-row" :class="{ selected: selId===item.id }"
+                 @click="pick(makeSelection(type, item))">
+              <RadioButton :modelValue="selId" :value="item.id" :inputId="'t'+item.id" />
+              <span class="ic-box"><i :class="'pi '+(type==='service'?'pi-wifi':'pi-chart-bar')"></i></span>
+              <div class="res-main">
+                <div class="t"><Highlight :text="item.title" :q="q" /></div>
+                <div class="sub"><span><span class="k">ID </span>{{ item.id }}</span></div>
+              </div>
+              <StatusDot :status="item.status" />
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Frontspace : fixed list of 4 -->
+      <template v-else-if="view==='frontspace'">
+        <div class="deep-help">Frontspaces are a fixed set of 4 product surfaces.</div>
+        <Listbox v-model="fsSel" :options="FRONTSPACES" dataKey="id" optionLabel="title" style="margin-top:12px"
+                 :pt="{ list: { style: 'padding:6px' } }">
+          <template #option="{ option }">
+            <div style="display:flex;align-items:center;gap:12px;padding:4px 2px">
+              <span class="ic-box"><i :class="'pi '+option.icon"></i></span>
+              <div><div style="font-weight:600">{{ option.title }}</div><div style="font-size:12px;color:var(--fg-secondary);margin-top:2px;line-height:1.4">{{ option.desc }}</div></div>
+            </div>
+          </template>
+        </Listbox>
+      </template>
+
+      <!-- Catalog : programs -->
+      <template v-else-if="view==='programs'">
+        <IconField style="margin-top:14px">
+          <InputIcon class="pi pi-search" />
+          <InputText v-model="q" placeholder="Search a program by title, ID or CK…" class="full" autofocus />
+        </IconField>
+        <div class="deep-help">Searches the whole content tree — <strong>programs, seasons &amp; clips</strong>. Open a program to narrow down to a season or clip.</div>
+        <div class="sv-results">
+          <div v-if="q===''" class="sv-empty">
+            <div class="ic-circle"><i class="pi pi-video"></i></div>
+            <div class="et">Search the catalog</div>
+            <div class="ed">Type a program title, ID or CK. Then open it to reach a specific season or clip.</div>
+          </div>
+          <div v-else-if="programList.length===0" class="sv-empty">
+            <div class="ic-circle"><i class="pi pi-search"></i></div>
+            <div class="et">No matches</div>
+            <div class="ed">Nothing in the catalog matches “{{ q }}”.</div>
+          </div>
+          <div v-else>
+            <div v-for="p in programList" :key="p.id" class="res-row" :class="{ selected: selId===p.id }"
+                 @click="pick(makeSelection('program', p))">
+              <RadioButton :modelValue="selId" :value="p.id" :inputId="'p'+p.id" />
+              <Poster :poster="p.poster" :size="26" />
+              <div class="res-main">
+                <div class="t"><Highlight :text="p.title" :q="q" /><span class="scope-pill"><i class="pi pi-video" style="font-size:11px"></i> Program</span></div>
+                <div class="sub"><span><span class="k">ID </span>{{ p.id }}</span><span><span class="k">CK </span>{{ p.ck }}</span></div>
+              </div>
+              <Button v-if="p.seasons.length + p.clips.length > 0" label="seasons / clips" icon="pi pi-chevron-right" iconPos="left"
+                      text severity="secondary" size="small" @click.stop="enterDrill(p)" />
+              <StatusDot v-if="p.status" :status="p.status" />
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Catalog : seasons + clips of a program -->
+      <template v-else-if="view==='children'">
+        <div class="ctx-chip">
+          <Button icon="pi pi-arrow-left" text rounded size="small" severity="secondary" @click="exitDrill" aria-label="Back to programs"
+                  :pt="{ root: { style: 'width:26px;height:26px;color:var(--accent-600)' } }" />
+          <Poster :poster="drill.poster" :size="20" :radius="3" />
+          <span class="pl">{{ drill.title }}</span>
+          <span class="ck">{{ drill.id }}</span>
+        </div>
+        <IconField>
+          <InputIcon class="pi pi-search" />
+          <InputText v-model="q" :placeholder="'Search seasons &amp; clips of '+drill.title+'…'" class="full" autofocus />
+        </IconField>
+        <div class="sv-results">
+          <div v-if="childList.length===0" class="sv-empty">
+            <div class="ic-circle"><i class="pi pi-search"></i></div>
+            <div class="et">Nothing matches</div>
+            <div class="ed">No season or clip in {{ drill.title }} matches “{{ q }}”.</div>
+          </div>
+          <div v-else>
+            <div v-for="row in childList" :key="row.kind+row.item.id" class="res-row" :class="{ selected: selId===row.item.id }"
+                 @click="pick(makeSelection(row.kind, row.item, drill))">
+              <RadioButton :modelValue="selId" :value="row.item.id" :inputId="'c'+row.item.id" />
+              <span class="ic-box"><i :class="'pi '+PILL[row.kind].icon"></i></span>
+              <div class="res-main">
+                <div class="t"><Highlight :text="row.item.title" :q="q" /><span class="scope-pill"><i :class="'pi '+PILL[row.kind].icon" style="font-size:11px"></i> {{ PILL[row.kind].label }}</span></div>
+                <div class="sub">
+                  <span><span class="k">ID </span>{{ row.item.id }}</span>
+                  <span v-if="row.kind==='season'">{{ row.item.episodes }} ep.</span>
+                  <span v-else>{{ row.item.dur }}</span>
+                </div>
+              </div>
+              <Button v-if="row.kind==='season' && drill.clips.length>0" label="clips" icon="pi pi-chevron-right"
+                      text severity="secondary" size="small" @click.stop="enterSeason(row.item)" />
+              <StatusDot v-if="row.item.status" :status="row.item.status" />
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Catalog : clips inside a season -->
+      <template v-else>
+        <div class="ctx-chip">
+          <Button icon="pi pi-arrow-left" text rounded size="small" severity="secondary" @click="exitSeason" aria-label="Back"
+                  :pt="{ root: { style: 'width:26px;height:26px;color:var(--accent-600)' } }" />
+          <Poster :poster="drill.poster" :size="20" :radius="3" />
+          <span class="pl">{{ drill.title }}</span>
+          <i class="pi pi-chevron-right" style="font-size:11px;color:var(--accent-600)"></i>
+          <span class="pl">{{ seasonDrill.title }}</span>
+          <span class="ck">{{ seasonDrill.id }}</span>
+        </div>
+        <IconField>
+          <InputIcon class="pi pi-search" />
+          <InputText v-model="q" :placeholder="'Search clips in '+seasonDrill.title+'…'" class="full" autofocus />
+        </IconField>
+        <div class="sv-results">
+          <div v-if="clipList.length===0" class="sv-empty">
+            <div class="ic-circle"><i class="pi pi-search"></i></div>
+            <div class="et">No clips match</div>
+            <div class="ed">No clip in {{ seasonDrill.title }} matches “{{ q }}”.</div>
+          </div>
+          <div v-else>
+            <div v-for="c in clipList" :key="c.id" class="res-row" :class="{ selected: selId===c.id }"
+                 @click="pick(makeSelection('clip', c, drill))">
+              <RadioButton :modelValue="selId" :value="c.id" :inputId="'sc'+c.id" />
+              <span class="ic-box"><i class="pi pi-play-circle"></i></span>
+              <div class="res-main">
+                <div class="t"><Highlight :text="c.title" :q="q" /><span class="scope-pill"><i class="pi pi-play-circle" style="font-size:11px"></i> Clip</span></div>
+                <div class="sub"><span><span class="k">ID </span>{{ c.id }}</span><span>{{ c.dur }}</span></div>
+              </div>
+              <StatusDot v-if="c.status" :status="c.status" />
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ========== WIZARD MODE ========== -->
+    <div v-else>
+      <!-- Step 1 : Details -->
+      <div v-if="step===1">
+        <div class="field">
+          <div class="label-row"><label>BO Title<span class="req">*</span></label></div>
+          <InputText v-model="form.title" placeholder="Enter a back-office title" class="full" />
+          <div class="meta-foot"><span class="help">After 70 characters the text could be cut</span><span class="counter" :class="{ over: form.title.length>70 }">{{ form.title.length }}/70</span></div>
+        </div>
+        <div class="field">
+          <div class="label-row"><label>Title</label></div>
+          <InputText v-model="form.pubTitle" placeholder="Enter a title" class="full" />
+          <div class="meta-foot"><span class="help">After 70 characters the text could be cut</span><span class="counter" :class="{ over: form.pubTitle.length>70 }">{{ form.pubTitle.length }}/70</span></div>
+        </div>
+        <div class="field">
+          <div class="label-row"><label>Sub-title</label></div>
+          <InputText v-model="form.subtitle" placeholder="Enter a subtitle" class="full" />
+          <div class="meta-foot"><span class="help">After 70 characters the text could be cut</span><span class="counter" :class="{ over: form.subtitle.length>70 }">{{ form.subtitle.length }}/70</span></div>
+        </div>
+        <div class="field">
+          <div class="label-row"><label>Description</label></div>
+          <Textarea v-model="form.desc" placeholder="Description" rows="2" autoResize class="full" />
+          <div class="meta-foot"><span class="help">After 105 characters the text could be cut</span><span class="counter" :class="{ over: form.desc.length>105 }">{{ form.desc.length }}/105</span></div>
+        </div>
+
+        <div class="redir-cards" style="margin-top:4px">
+          <div v-for="o in REDIR_OPTIONS" :key="o.key" class="redir-card" :class="{ selected: form.destKind===o.key }" @click="pickRedir(o.key)">
+            <RadioButton :modelValue="form.destKind" :value="o.key" :inputId="'r'+o.key" />
+            <div>
+              <div class="rc-title"><i :class="'pi '+o.icon"></i> {{ o.title }}</div>
+              <div class="rc-desc">{{ o.desc }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="form.destKind==='external'" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--stroke-bright)">
+          <div class="field">
+            <div class="label-row"><label>External link<span class="req">*</span></label></div>
+            <InputText v-model="form.externalUrl" placeholder="https://…" class="full" />
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <div class="label-row"><label>CTA's label <span style="color:var(--fg-tertiary);font-weight:400">(optional)</span></label></div>
+            <InputText v-model="form.ctaLabel" placeholder="e.g. Watch now" class="full" />
+          </div>
+        </div>
+
+        <div v-if="form.destKind==='internal'" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--stroke-bright)">
+          <div v-if="form.selection" class="chosen">
+            <Poster v-if="form.selection.poster" :poster="form.selection.poster" :size="34" />
+            <span v-else class="ic-box" style="width:40px;height:40px;background:#fff;color:var(--accent-600)"><i class="pi pi-link"></i></span>
+            <div style="min-width:0">
+              <div class="meta-type">{{ form.selection.typeLabel }}</div>
+              <div class="t" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ form.selection.title }}</div>
+              <div class="sub">{{ form.selection.sub }}<template v-if="form.selection.status"> · {{ form.selection.status }}</template></div>
+            </div>
+            <div class="spacer"></div>
+            <Button label="Change" severity="secondary" outlined size="small" @click="openSearch" />
+          </div>
+          <Button v-else label="Choose internal destination" icon="pi pi-search" severity="secondary" outlined
+                  style="width:100%;justify-content:center;height:48px" @click="openSearch" />
+          <div v-if="!form.selection" style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;color:var(--red-stroke)">
+            <i class="pi pi-info-circle" style="font-size:13px"></i> Select a destination to continue.
+          </div>
+          <div class="field" style="margin-top:16px;margin-bottom:0">
+            <div class="label-row"><label>CTA's label <span style="color:var(--fg-tertiary);font-weight:400">(optional)</span></label></div>
+            <InputText v-model="form.ctaLabel" placeholder="e.g. Watch now" class="full" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 : Editorial content's visuals -->
+      <div v-else>
+        <div class="field" style="margin-bottom:16px">
+          <div class="label-row"><label>Select a visual</label></div>
+          <Select :modelValue="null" @update:modelValue="addVisual" :options="availableTypes" optionLabel="label" optionValue="key"
+                  placeholder="Select a visual type" class="full" :disabled="availableTypes.length===0" />
+        </div>
+
+        <div v-if="form.visuals.length" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px">
+          <span v-for="(v,i) in form.visuals" :key="'chip'+v.key" class="visual-chip">{{ v.label }}
+            <button type="button" @click="removeVisual(i)" aria-label="Remove"><i class="pi pi-times"></i></button></span>
+        </div>
+
+        <div v-for="(v,i) in form.visuals" :key="'blk'+v.key" class="visual-block">
+          <div style="font-weight:700;font-size:14px">{{ v.label }}</div>
+          <div style="font-size:12px;color:var(--fg-tertiary);margin-top:2px">{{ v.spec }}</div>
+          <div class="dropzone" :class="{ over: v._drag, filled: v.file }"
+               @dragover.prevent="v._drag=true" @dragleave.prevent="v._drag=false" @drop.prevent="onDrop(i,$event)">
+            <template v-if="v.file">
+              <img :src="v.file" class="dz-preview" :alt="v.alt" />
+              <button type="button" class="dz-remove" @click="v.file=null;v.fileName=''" aria-label="Remove image"><i class="pi pi-times"></i></button>
+            </template>
+            <template v-else>
+              <label class="dz-btn"><i class="pi pi-plus"></i> Upload a file<input type="file" accept="image/*" hidden @change="onFile(i,$event)" /></label>
+              <div class="dz-hint">or drag and drop it</div>
+            </template>
+          </div>
+          <div class="field" style="margin-top:14px;margin-bottom:0">
+            <div class="label-row"><label>Alternative text<span class="req">*</span></label></div>
+            <InputText v-model="v.alt" placeholder="Content text" class="full" />
+          </div>
+        </div>
+
+        <div v-if="!form.visuals.length" class="sv-empty" style="padding:36px 20px">
+          <div class="ic-circle"><i class="pi pi-image"></i></div>
+          <div class="et">No visual yet</div>
+          <div class="ed">Select a visual type above to add an image for that format.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- footer -->
+    <template #footer>
+      <div v-if="mode==='search'" style="display:flex;align-items:center;gap:10px;width:100%">
+        <Button label="Cancel" text severity="secondary" @click="backToWizard" />
+        <div style="flex:1"></div>
+        <div v-if="draft" style="font-size:13px;color:var(--fg-secondary);margin-right:4px"><strong style="color:var(--fg-primary)">{{ draft.typeLabel }}</strong> selected</div>
+        <Button label="Select destination" icon="pi pi-check" :disabled="!draft" @click="confirmSearch" />
+      </div>
+      <div v-else style="display:flex;align-items:center;gap:10px;width:100%">
+        <Button :label="step===1 ? 'Cancel' : 'Back'" :icon="step===1 ? '' : 'pi pi-chevron-left'" text severity="secondary"
+                @click="step===1 ? closeModal() : step--" />
+        <div style="flex:1"></div>
+        <div class="stepper">
+          <div class="node" :class="{ active: step===1, done: step>1 }"><span class="dot"><i v-if="step>1" class="pi pi-check" style="font-size:11px"></i><template v-else>1</template></span><span class="lbl">Details</span></div>
+          <span class="bar"></span>
+          <div class="node" :class="{ active: step===2 }"><span class="dot">2</span><span class="lbl">Visuals</span></div>
+        </div>
+        <div style="flex:1"></div>
+        <Button v-if="step<2" label="Next" icon="pi pi-arrow-right" iconPos="right" :disabled="!canNext" @click="step++" />
+        <Button v-else label="Create" icon="pi pi-check" :disabled="!canCreate" @click="create" />
+      </div>
+    </template>
+  </Dialog>
+
+  <Toast position="bottom-center" />
+</div>
+`
+};
+
+/* ---------- bootstrap ---------- */
+const app = createApp(App);
+app.use(PrimeVue.Config, {
+  theme: { preset: PrimeUIX.Themes.Aura, options: { darkModeSelector: ".__never_dark__" } }
+});
+app.use(PrimeVue.ToastService);
+
+// register the components we use
+const C = ["Button","InputText","Textarea","IconField","InputIcon","Dialog","DataTable","Column",
+           "RadioButton","SelectButton","Select","Listbox","Tag","Toast"];
+C.forEach(n => app.component(n, PrimeVue[n]));
+
+app.mount("#app");
+</script>
+</body>
+</html>
